@@ -1,0 +1,355 @@
+// Configuração da API
+const API_BASE = window.location.origin;
+
+// Utilidades
+const showLoading = () => document.getElementById('loading').classList.add('active');
+const hideLoading = () => document.getElementById('loading').classList.remove('active');
+
+// Formatação de CNPJ
+function formatCNPJ(cnpj) {
+    const cleaned = cnpj.replace(/\D/g, '');
+    if (cleaned.length === 14) {
+        return cleaned.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+    }
+    return cnpj;
+}
+
+// Auto-formatar input de CNPJ
+document.getElementById('cnpj')?.addEventListener('input', function(e) {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value.length <= 14) {
+        e.target.value = formatCNPJ(value);
+    }
+});
+
+// Tabs
+function showTab(tabName) {
+    // Esconde todas as tabs
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+    });
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+
+    // Mostra a tab selecionada
+    document.getElementById(`${tabName}-tab`).classList.add('active');
+    event.target.classList.add('active');
+}
+
+// Mostrar resultado
+function showResult(elementId, content, type = 'info') {
+    const element = document.getElementById(elementId);
+    element.innerHTML = content;
+    element.className = `result ${type}`;
+}
+
+// Formatar endereço
+function formatAddress(endereco) {
+    if (!endereco) return 'Não disponível';
+    const parts = [
+        endereco.logradouro,
+        endereco.numero,
+        endereco.complemento,
+        endereco.bairro,
+        endereco.municipio,
+        endereco.uf,
+        endereco.cep
+    ].filter(p => p);
+    return parts.join(', ');
+}
+
+// Renderizar dados de empresa
+function renderCompanyData(data) {
+    return `
+        <div class="result-card success">
+            <h3>${data.razao_social || 'Empresa'}</h3>
+            <div class="result-grid">
+                <div class="result-item">
+                    <strong>CNPJ:</strong>
+                    <span>${formatCNPJ(data.cnpj || '')}</span>
+                </div>
+                <div class="result-item">
+                    <strong>Nome Fantasia:</strong>
+                    <span>${data.nome_fantasia || 'Não informado'}</span>
+                </div>
+                <div class="result-item">
+                    <strong>Situação:</strong>
+                    <span>${data.situacao_cadastral || 'Não disponível'}</span>
+                </div>
+                <div class="result-item">
+                    <strong>CNAE Principal:</strong>
+                    <span>${data.cnae_principal?.codigo || ''} - ${data.cnae_principal?.descricao || 'Não informado'}</span>
+                </div>
+                <div class="result-item">
+                    <strong>Data de Abertura:</strong>
+                    <span>${data.data_abertura || 'Não informado'}</span>
+                </div>
+                <div class="result-item">
+                    <strong>Porte:</strong>
+                    <span>${data.porte || 'Não informado'}</span>
+                </div>
+                <div class="result-item" style="grid-column: 1 / -1;">
+                    <strong>Endereço:</strong>
+                    <span>${formatAddress(data.endereco)}</span>
+                </div>
+                <div class="result-item">
+                    <strong>Telefone:</strong>
+                    <span>${data.telefone || 'Não informado'}</span>
+                </div>
+                <div class="result-item">
+                    <strong>Email:</strong>
+                    <span>${data.email || 'Não informado'}</span>
+                </div>
+                <div class="result-item">
+                    <strong>Capital Social:</strong>
+                    <span>${data.capital_social || 'Não informado'}</span>
+                </div>
+                <div class="result-item">
+                    <strong>Fonte:</strong>
+                    <span>${data.source || 'Não informado'}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Consulta única
+document.getElementById('single-form')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const cnpj = document.getElementById('cnpj').value.replace(/\D/g, '');
+    const source = document.getElementById('source').value;
+
+    if (cnpj.length !== 14) {
+        showResult('single-result', `
+            <div class="result-card error">
+                <p><strong>Erro:</strong> CNPJ deve ter 14 dígitos</p>
+            </div>
+        `, 'error');
+        return;
+    }
+
+    showLoading();
+
+    try {
+        const response = await fetch(`${API_BASE}/api/cnpj/search`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ cnpj, source })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.detail || 'Erro ao consultar CNPJ');
+        }
+
+        const html = renderCompanyData(result.data);
+        showResult('single-result', html, 'success');
+
+    } catch (error) {
+        showResult('single-result', `
+            <div class="result-card error">
+                <p><strong>Erro:</strong> ${error.message}</p>
+            </div>
+        `, 'error');
+    } finally {
+        hideLoading();
+    }
+});
+
+// Consulta em lote
+document.getElementById('bulk-form')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const cnpjsText = document.getElementById('cnpjs').value;
+    const cnpjs = cnpjsText.split('\n')
+        .map(line => line.trim().replace(/\D/g, ''))
+        .filter(cnpj => cnpj.length === 14);
+
+    if (cnpjs.length === 0) {
+        showResult('bulk-result', `
+            <div class="result-card error">
+                <p><strong>Erro:</strong> Nenhum CNPJ válido fornecido</p>
+            </div>
+        `, 'error');
+        return;
+    }
+
+    if (cnpjs.length > 100) {
+        showResult('bulk-result', `
+            <div class="result-card error">
+                <p><strong>Erro:</strong> Máximo de 100 CNPJs por consulta</p>
+            </div>
+        `, 'error');
+        return;
+    }
+
+    const source = document.getElementById('bulk-source').value;
+
+    // Filtros
+    const filters = {};
+    const estado = document.getElementById('estado').value.trim();
+    const cidade = document.getElementById('cidade').value.trim();
+    const cnae = document.getElementById('cnae').value.trim();
+    const situacao = document.getElementById('situacao').value.trim();
+    const apenasMatriz = document.getElementById('apenas-matriz').checked;
+
+    if (estado) filters.estado = estado;
+    if (cidade) filters.cidade = cidade;
+    if (cnae) filters.cnae = cnae;
+    if (situacao) filters.situacao = situacao;
+    if (apenasMatriz) filters.apenas_matriz = true;
+
+    showLoading();
+
+    try {
+        const response = await fetch(`${API_BASE}/api/cnpj/bulk`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                cnpjs,
+                source,
+                filters: Object.keys(filters).length > 0 ? filters : null
+            })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.detail || 'Erro ao consultar CNPJs');
+        }
+
+        let html = `
+            <div class="result-card success">
+                <h3>📊 Resultados da Consulta</h3>
+                <p><strong>Total solicitado:</strong> ${result.total_solicitado}</p>
+                <p><strong>Total encontrado:</strong> ${result.total_encontrado}</p>
+            </div>
+        `;
+
+        if (result.data && result.data.length > 0) {
+            html += result.data.map(company => renderCompanyData(company)).join('');
+        } else {
+            html += `
+                <div class="result-card error">
+                    <p>Nenhuma empresa encontrada com os filtros aplicados.</p>
+                </div>
+            `;
+        }
+
+        showResult('bulk-result', html, 'success');
+
+    } catch (error) {
+        showResult('bulk-result', `
+            <div class="result-card error">
+                <p><strong>Erro:</strong> ${error.message}</p>
+            </div>
+        `, 'error');
+    } finally {
+        hideLoading();
+    }
+});
+
+// Estatísticas
+async function loadStats() {
+    showLoading();
+
+    try {
+        const response = await fetch(`${API_BASE}/api/stats`);
+        const stats = await response.json();
+
+        let html = '<div class="stats-grid">';
+
+        // Stats dos scrapers
+        for (const [source, data] of Object.entries(stats.scrapers)) {
+            html += `
+                <div class="stat-card">
+                    <div class="number">${data.requests_made || 0}</div>
+                    <div class="label">${source} - Requisições</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">${data.successful_requests || 0}</div>
+                    <div class="label">${source} - Sucessos</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">${data.cached_responses || 0}</div>
+                    <div class="label">${source} - Cache</div>
+                </div>
+            `;
+        }
+
+        // Stats do cache
+        if (stats.cache) {
+            html += `
+                <div class="stat-card">
+                    <div class="number">${stats.cache.total_cached || 0}</div>
+                    <div class="label">Total em Cache</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">${stats.cache.active || 0}</div>
+                    <div class="label">Cache Ativo</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">${stats.cache.total_size_kb || 0} KB</div>
+                    <div class="label">Tamanho do Cache</div>
+                </div>
+            `;
+        }
+
+        html += '</div>';
+
+        showResult('stats-result', html);
+
+    } catch (error) {
+        showResult('stats-result', `
+            <div class="result-card error">
+                <p><strong>Erro:</strong> ${error.message}</p>
+            </div>
+        `, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Limpar cache
+async function clearCache() {
+    if (!confirm('Tem certeza que deseja limpar todo o cache?')) {
+        return;
+    }
+
+    showLoading();
+
+    try {
+        const response = await fetch(`${API_BASE}/api/cache/clear`, {
+            method: 'POST'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(`Cache limpo com sucesso! ${result.files_removed} arquivos removidos.`);
+            loadStats();
+        }
+
+    } catch (error) {
+        alert(`Erro ao limpar cache: ${error.message}`);
+    } finally {
+        hideLoading();
+    }
+}
+
+// Carregar estatísticas ao abrir a aba
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        if (this.textContent.includes('Estatísticas')) {
+            loadStats();
+        }
+    });
+});

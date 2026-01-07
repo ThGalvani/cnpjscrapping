@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CNPJ Scraper - Consulta de Empresas</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏢 CNPJ Scraper</h1>
+            <p class="subtitle">Consulta ética de dados públicos de empresas brasileiras</p>
+        </header>
+
+        <div class="disclaimer">
+            <strong>⚠️ Aviso Legal:</strong> Esta ferramenta coleta apenas dados públicos.
+            Use de forma ética e responsável, respeitando a LGPD e termos de uso.
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('single')">Consulta Única</button>
+            <button class="tab-btn" onclick="showTab('bulk')">Consulta em Lote</button>
+            <button class="tab-btn" onclick="showTab('stats')">Estatísticas</button>
+        </div>
+
+        <!-- Tab: Consulta Única -->
+        <div id="single-tab" class="tab-content active">
+            <div class="card">
+                <h2>Consultar CNPJ</h2>
+                <form id="single-form">
+                    <div class="form-group">
+                        <label for="cnpj">CNPJ:</label>
+                        <input
+                            type="text"
+                            id="cnpj"
+                            name="cnpj"
+                            placeholder="00.000.000/0000-00"
+                            maxlength="18"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="source">Fonte de Dados:</label>
+                        <select id="source" name="source">
+                            <option value="receitaws">ReceitaWS</option>
+                            <option value="brasilapi">BrasilAPI</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        🔍 Consultar
+                    </button>
+                </form>
+
+                <div id="single-result" class="result"></div>
+            </div>
+        </div>
+
+        <!-- Tab: Consulta em Lote -->
+        <div id="bulk-tab" class="tab-content">
+            <div class="card">
+                <h2>Consulta em Lote</h2>
+                <form id="bulk-form">
+                    <div class="form-group">
+                        <label for="cnpjs">CNPJs (um por linha, máximo 100):</label>
+                        <textarea
+                            id="cnpjs"
+                            name="cnpjs"
+                            rows="5"
+                            placeholder="00000000000191&#10;33000167000101&#10;34028316000103"
+                            required
+                        ></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bulk-source">Fonte de Dados:</label>
+                        <select id="bulk-source" name="source">
+                            <option value="receitaws">ReceitaWS</option>
+                            <option value="brasilapi">BrasilAPI</option>
+                        </select>
+                    </div>
+
+                    <div class="filters">
+                        <h3>Filtros (opcional)</h3>
+                        <div class="filter-grid">
+                            <div class="form-group">
+                                <label for="estado">Estado:</label>
+                                <input type="text" id="estado" placeholder="SP, RJ, MG...">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="cidade">Cidade:</label>
+                                <input type="text" id="cidade" placeholder="São Paulo">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="cnae">CNAE:</label>
+                                <input type="text" id="cnae" placeholder="6201">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="situacao">Situação:</label>
+                                <input type="text" id="situacao" placeholder="ATIVA">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="apenas-matriz">
+                                Apenas matrizes (excluir filiais)
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        🔍 Consultar Lote
+                    </button>
+                </form>
+
+                <div id="bulk-result" class="result"></div>
+            </div>
+        </div>
+
+        <!-- Tab: Estatísticas -->
+        <div id="stats-tab" class="tab-content">
+            <div class="card">
+                <h2>Estatísticas de Uso</h2>
+                <button onclick="loadStats()" class="btn btn-secondary">
+                    🔄 Atualizar
+                </button>
+                <button onclick="clearCache()" class="btn btn-danger">
+                    🗑️ Limpar Cache
+                </button>
+                <div id="stats-result" class="result"></div>
+            </div>
+        </div>
+
+        <footer>
+            <p>
+                <strong>CNPJ Scraper v1.0</strong> |
+                <a href="/docs" target="_blank">API Docs</a> |
+                <a href="https://github.com" target="_blank">GitHub</a>
+            </p>
+            <p class="legal">
+                ⚖️ Use apenas para fins legais e éticos. Respeite a LGPD e termos de uso.
+            </p>
+        </footer>
+    </div>
+
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p>Processando...</p>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

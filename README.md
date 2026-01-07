@@ -13,7 +13,10 @@ Ferramenta ética de web scraping para coleta de dados públicos de empresas bra
 - [Características](#características)
 - [Instalação](#instalação)
 - [Uso](#uso)
+  - [CLI (Linha de Comando)](#cli-linha-de-comando)
+  - [API Web](#api-web)
 - [Exemplos](#exemplos)
+- [Deploy](#deploy)
 - [Configuração](#configuração)
 - [Fontes de Dados](#fontes-de-dados)
 - [Boas Práticas](#boas-práticas)
@@ -132,7 +135,11 @@ pip install -r requirements.txt
 
 ## 🚀 Uso
 
-### Sintaxe Básica
+A ferramenta pode ser usada de duas formas: via **CLI (linha de comando)** ou via **API Web**.
+
+### CLI (Linha de Comando)
+
+#### Sintaxe Básica
 
 ```bash
 python scraper.py [opções]
@@ -182,6 +189,82 @@ python scraper.py [opções]
 --clear-cache               # Limpar cache antes de iniciar
 --skip-disclaimer           # Pular aviso legal
 ```
+
+### API Web
+
+A ferramenta inclui uma API Web completa com interface gráfica.
+
+#### Iniciar a API
+
+```bash
+# Opção 1: Usando uvicorn
+uvicorn api:app --reload --port 8000
+
+# Opção 2: Usando Python
+python api.py
+
+# Opção 3: Usando Docker
+docker-compose up
+```
+
+#### Acessar Interfaces
+
+- **Frontend Web**: http://localhost:8000/web
+- **Documentação API**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+- **Health Check**: http://localhost:8000/health
+
+#### Recursos da API Web
+
+**Interface Gráfica:**
+- 🎨 Interface moderna e responsiva
+- 📱 Funciona em mobile e desktop
+- 🔍 Consulta única ou em lote
+- 🎯 Filtros avançados interativos
+- 📊 Estatísticas em tempo real
+- 💾 Cache management
+
+**Endpoints da API:**
+
+```bash
+# Validar CNPJ
+POST /api/cnpj/validate?cnpj=00000000000191
+
+# Buscar empresa
+POST /api/cnpj/search
+{
+  "cnpj": "00000000000191",
+  "source": "receitaws"
+}
+
+# Busca em lote
+POST /api/cnpj/bulk
+{
+  "cnpjs": ["00000000000191", "33000167000101"],
+  "source": "receitaws",
+  "filters": {
+    "estado": "SP",
+    "situacao": "ATIVA"
+  }
+}
+
+# Estatísticas
+GET /api/stats
+
+# Limpar cache
+POST /api/cache/clear
+```
+
+**Deploy em Produção:**
+
+Veja o guia completo: [DEPLOY.md](DEPLOY.md)
+
+Plataformas suportadas:
+- 🚂 **Railway** (Recomendado - $5 grátis/mês)
+- 🎨 **Render** (750h grátis/mês)
+- ✈️ **Fly.io** (3 VMs grátis)
+- ☁️ **Google Cloud Run**
+- 🐳 **Docker** (qualquer plataforma)
 
 ## 📚 Exemplos
 
