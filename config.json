@@ -1,0 +1,41 @@
+{
+  "scraping": {
+    "user_agent": "CNPJ Scraper Bot/1.0 (Educational/Research Purpose; Respects robots.txt)",
+    "default_delay": 2,
+    "timeout": 30,
+    "max_retries": 3,
+    "backoff_factor": 2,
+    "respect_robots_txt": true,
+    "cache_enabled": true,
+    "cache_duration_hours": 24
+  },
+  "sources": {
+    "receitaws": {
+      "base_url": "https://www.receitaws.com.br/v1/cnpj/",
+      "enabled": true,
+      "rate_limit": 3,
+      "requires_api_key": false
+    },
+    "brasilapi": {
+      "base_url": "https://brasilapi.com.br/api/cnpj/v1/",
+      "enabled": true,
+      "rate_limit": 2,
+      "requires_api_key": false
+    }
+  },
+  "export": {
+    "default_format": "csv",
+    "output_directory": "data",
+    "include_timestamp": true
+  },
+  "logging": {
+    "level": "INFO",
+    "log_directory": "logs",
+    "max_log_size_mb": 10,
+    "backup_count": 5
+  },
+  "filters": {
+    "estados_brasil": ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"],
+    "situacoes_cadastrais": ["ATIVA", "SUSPENSA", "INAPTA", "BAIXADA", "NULA"]
+  }
+}
