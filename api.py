@@ -22,6 +22,7 @@ from cnpj_scraper.utils import (
 from cnpj_scraper.scrapers import ReceitaWSScraper, BrasilAPIScraper
 from cnpj_scraper.scrapers.discovery import CNPJDiscovery, MassDataCollector
 from cnpj_scraper.scrapers.receita_data import get_sample_cnpjs_by_category
+from cnpj_scraper.scrapers.receita_processor import ReceitaProcessor
 from cnpj_scraper.exporters import DataExporter
 from cnpj_scraper.filters import CompanyFilter
 
@@ -554,6 +555,137 @@ async def list_categories():
             }
         ]
     }
+
+
+@app.post("/api/discover/mei-me-by-region")
+async def discover_mei_me_by_region(
+    cidade: str = Query(..., description="Nome da cidade"),
+    estado: str = Query(..., description="UF (ex: SP, RJ, MG)"),
+    limit: int = Query(50, description="Limite de resultados", le=500),
+    only_with_phone: bool = Query(True, description="Apenas empresas com telefone")
+):
+    """
+    Busca MEI e ME (Microempresas) em uma região específica
+
+    REQUER: Dados da Receita Federal baixados
+    Para baixar: python -m cnpj_scraper.scrapers.receita_downloader
+
+    Exemplo:
+    POST /api/discover/mei-me-by-region?cidade=São Paulo&estado=SP&limit=50
+
+    Retorna:
+    - CNPJs de MEI e ME da região
+    - Razão Social
+    - Nome Fantasia
+    - Telefone (se disponível)
+    - Email
+    - Endereço completo
+    - Porte (MEI ou ME)
+    """
+    try:
+        processor = ReceitaProcessor()
+
+        # Verifica se dados estão disponíveis
+        estabelecimentos_files = processor.find_files('Estabelecimentos')
+        if not estabelecimentos_files:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "Dados da Receita Federal não disponíveis",
+                    "solution": "Execute: python -m cnpj_scraper.scrapers.receita_downloader",
+                    "info": "Será necessário baixar ~3GB de dados públicos da Receita Federal",
+                    "url": "https://dadosabertos.rfb.gov.br/CNPJ/"
+                }
+            )
+
+        logger.info(f"Buscando MEI/ME em {cidade}/{estado}")
+
+        # Busca empresas
+        results = processor.search_mei_me_by_city(
+            cidade=cidade,
+            estado=estado,
+            limit=limit,
+            only_with_phone=only_with_phone
+        )
+
+        # Formata resultados
+        formatted_results = []
+        for empresa in results:
+            formatted_results.append({
+                'cnpj': format_cnpj(empresa['cnpj']),
+                'razao_social': empresa.get('razao_social', ''),
+                'nome_fantasia': empresa.get('nome_fantasia', ''),
+                'porte': empresa.get('porte', 'Não informado'),
+                'telefone': empresa.get('telefone', ''),
+                'email': empresa.get('email', ''),
+                'endereco_completo': f"{empresa['endereco']['logradouro']}, {empresa['endereco']['numero']} - {empresa['endereco']['bairro']} - {empresa['endereco']['municipio']}/{empresa['endereco']['uf']}",
+                'situacao': empresa.get('situacao', ''),
+                'cnae': empresa.get('cnae', ''),
+                'matriz_filial': empresa.get('matriz_filial', ''),
+                'data_abertura': empresa.get('data_abertura', '')
+            })
+
+        with_phone = sum(1 for r in formatted_results if r['telefone'])
+
+        return {
+            "success": True,
+            "source": "Receita Federal (Dados Abertos)",
+            "query": {
+                "cidade": cidade,
+                "estado": estado,
+                "limit": limit,
+                "only_with_phone": only_with_phone
+            },
+            "results": {
+                "total_found": len(formatted_results),
+                "with_phone": with_phone,
+                "percentage_with_phone": round(with_phone / len(formatted_results) * 100, 1) if formatted_results else 0
+            },
+            "data": formatted_results
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro na busca MEI/ME: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/receita/status")
+async def receita_status():
+    """
+    Verifica status dos dados da Receita Federal
+
+    Retorna informações sobre:
+    - Arquivos baixados
+    - Tamanho total
+    - Cache disponível
+    """
+    try:
+        processor = ReceitaProcessor()
+
+        estabelecimentos = processor.find_files('Estabelecimentos')
+        empresas = processor.find_files('Empresas')
+        cache_stats = processor.get_cache_stats()
+
+        return {
+            "status": "available" if estabelecimentos else "not_available",
+            "files": {
+                "estabelecimentos": len(estabelecimentos),
+                "empresas": len(empresas)
+            },
+            "cache": cache_stats,
+            "download_url": "https://dadosabertos.rfb.gov.br/CNPJ/",
+            "download_command": "python -m cnpj_scraper.scrapers.receita_downloader",
+            "note": "Dados da Receita Federal são públicos e gratuitos (~3GB essencial, ~30GB completo)"
+        }
+
+    except Exception as e:
+        logger.error(f"Erro ao verificar status: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
 
 
 # Serve arquivos estáticos (frontend)

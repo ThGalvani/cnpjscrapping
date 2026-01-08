@@ -19,14 +19,98 @@
         </div>
 
         <div class="tabs">
-            <button class="tab-btn active" onclick="showTab('category')">📞 Buscar Telefones</button>
+            <button class="tab-btn active" onclick="showTab('mei')">🏪 MEI/ME por Região</button>
+            <button class="tab-btn" onclick="showTab('category')">📞 Buscar por Categoria</button>
             <button class="tab-btn" onclick="showTab('single')">Consulta Única</button>
             <button class="tab-btn" onclick="showTab('bulk')">Consulta em Lote</button>
             <button class="tab-btn" onclick="showTab('stats')">Estatísticas</button>
         </div>
 
+        <!-- Tab: MEI/ME por Região -->
+        <div id="mei-tab" class="tab-content active">
+            <div class="card">
+                <h2>🏪 Buscar MEI e ME por Região</h2>
+                <p style="margin-bottom: 20px; color: #64748b;">
+                    <strong>Busca Avançada:</strong> Encontre Microempreendedores Individuais (MEI) e Microempresas (ME) em qualquer cidade do Brasil!
+                </p>
+
+                <div id="receita-status-alert" style="margin-bottom: 20px;"></div>
+
+                <form id="mei-form">
+                    <div class="form-group">
+                        <label for="mei-cidade">Cidade:</label>
+                        <input
+                            type="text"
+                            id="mei-cidade"
+                            name="cidade"
+                            placeholder="Ex: São Paulo, Campinas, Rio de Janeiro..."
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="mei-estado">Estado (UF):</label>
+                        <select id="mei-estado" name="estado" required>
+                            <option value="">Selecione...</option>
+                            <option value="AC">AC - Acre</option>
+                            <option value="AL">AL - Alagoas</option>
+                            <option value="AP">AP - Amapá</option>
+                            <option value="AM">AM - Amazonas</option>
+                            <option value="BA">BA - Bahia</option>
+                            <option value="CE">CE - Ceará</option>
+                            <option value="DF">DF - Distrito Federal</option>
+                            <option value="ES">ES - Espírito Santo</option>
+                            <option value="GO">GO - Goiás</option>
+                            <option value="MA">MA - Maranhão</option>
+                            <option value="MT">MT - Mato Grosso</option>
+                            <option value="MS">MS - Mato Grosso do Sul</option>
+                            <option value="MG">MG - Minas Gerais</option>
+                            <option value="PA">PA - Pará</option>
+                            <option value="PB">PB - Paraíba</option>
+                            <option value="PR">PR - Paraná</option>
+                            <option value="PE">PE - Pernambuco</option>
+                            <option value="PI">PI - Piauí</option>
+                            <option value="RJ">RJ - Rio de Janeiro</option>
+                            <option value="RN">RN - Rio Grande do Norte</option>
+                            <option value="RS">RS - Rio Grande do Sul</option>
+                            <option value="RO">RO - Rondônia</option>
+                            <option value="RR">RR - Roraima</option>
+                            <option value="SC">SC - Santa Catarina</option>
+                            <option value="SP">SP - São Paulo</option>
+                            <option value="SE">SE - Sergipe</option>
+                            <option value="TO">TO - Tocantins</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="mei-limit">Quantidade de resultados:</label>
+                        <select id="mei-limit" name="limit">
+                            <option value="20">20 empresas</option>
+                            <option value="50" selected>50 empresas</option>
+                            <option value="100">100 empresas</option>
+                            <option value="200">200 empresas</option>
+                            <option value="500">500 empresas (máximo)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="mei-only-phone" checked>
+                            Retornar apenas empresas com telefone
+                        </label>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        🔍 Buscar MEI/ME
+                    </button>
+                </form>
+
+                <div id="mei-result" class="result"></div>
+            </div>
+        </div>
+
         <!-- Tab: Buscar Telefones por Categoria -->
-        <div id="category-tab" class="tab-content active">
+        <div id="category-tab" class="tab-content">
             <div class="card">
                 <h2>📞 Buscar Telefones de Empresas</h2>
                 <p style="margin-bottom: 20px; color: #64748b;">

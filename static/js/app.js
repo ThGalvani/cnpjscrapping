@@ -115,6 +115,213 @@ function renderCompanyData(data) {
     `;
 }
 
+// Verificar status dos dados da Receita ao carregar
+async function checkReceitaStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/api/receita/status`);
+        const status = await response.json();
+
+        const alert = document.getElementById('receita-status-alert');
+        if (!alert) return;
+
+        if (status.status === 'available') {
+            alert.innerHTML = `
+                <div style="background: #d1fae5; border-left: 4px solid #10b981; padding: 15px; border-radius: 6px;">
+                    <strong style="color: #065f46;">✅ Dados da Receita Federal disponíveis!</strong><br>
+                    <span style="color: #047857;">Você pode buscar MEI e ME em qualquer cidade do Brasil.</span><br>
+                    <small style="color: #059669;">Arquivos: ${status.files.estabelecimentos} | Cache: ${status.cache.total_cached} consultas</small>
+                </div>
+            `;
+        } else {
+            alert.innerHTML = `
+                <div style="background: #fee2e2; border-left: 4px solid #ef4444; padding: 15px; border-radius: 6px;">
+                    <strong style="color: #991b1b;">⚠️ Dados da Receita Federal não disponíveis</strong><br>
+                    <span style="color: #b91c1c;">Para usar esta funcionalidade, você precisa baixar os dados públicos da Receita Federal (~3GB).</span><br>
+                    <br>
+                    <strong style="color: #991b1b;">Como baixar:</strong><br>
+                    <code style="background: #fecaca; padding: 5px; border-radius: 3px; color: #7f1d1d;">python -m cnpj_scraper.scrapers.receita_downloader</code><br>
+                    <br>
+                    <small style="color: #b91c1c;">
+                        Fonte oficial: <a href="${status.download_url}" target="_blank" style="color: #7f1d1d; text-decoration: underline;">Receita Federal</a>
+                    </small>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Erro ao verificar status da Receita:', error);
+    }
+}
+
+// Verifica status ao carregar página
+document.addEventListener('DOMContentLoaded', checkReceitaStatus);
+
+// Buscar MEI/ME por região
+document.getElementById('mei-form')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const cidade = document.getElementById('mei-cidade').value;
+    const estado = document.getElementById('mei-estado').value;
+    const limit = document.getElementById('mei-limit').value;
+    const onlyPhone = document.getElementById('mei-only-phone').checked;
+
+    if (!cidade || !estado) {
+        showResult('mei-result', `
+            <div class="result-card error">
+                <p><strong>Erro:</strong> Preencha cidade e estado</p>
+            </div>
+        `, 'error');
+        return;
+    }
+
+    showLoading();
+
+    try {
+        const response = await fetch(
+            `${API_BASE}/api/discover/mei-me-by-region?cidade=${encodeURIComponent(cidade)}&estado=${estado}&limit=${limit}&only_with_phone=${onlyPhone}`,
+            { method: 'POST' }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            if (response.status === 503) {
+                // Dados não disponíveis
+                throw new Error(
+                    'Dados da Receita Federal não disponíveis. ' +
+                    'Execute: python -m cnpj_scraper.scrapers.receita_downloader'
+                );
+            }
+            throw new Error(result.detail || 'Erro ao buscar empresas');
+        }
+
+        let html = `
+            <div class="result-card success">
+                <h3>📊 Resultados - MEI/ME em ${cidade}/${estado}</h3>
+                <p><strong>Total encontrado:</strong> ${result.results.total_found}</p>
+                <p><strong>Com telefone:</strong> ${result.results.with_phone} (${result.results.percentage_with_phone}%)</p>
+                <p><strong>Fonte:</strong> ${result.source}</p>
+            </div>
+        `;
+
+        if (result.data && result.data.length > 0) {
+            // Renderiza empresas
+            result.data.forEach(empresa => {
+                const hasPhone = empresa.telefone && empresa.telefone.trim();
+
+                html += `
+                    <div class="result-card ${hasPhone ? 'success' : ''}">
+                        <h3>${empresa.razao_social || empresa.nome_fantasia || 'Empresa'}</h3>
+                        <div class="result-grid">
+                            <div class="result-item">
+                                <strong>CNPJ:</strong>
+                                <span>${empresa.cnpj || 'N/A'}</span>
+                            </div>
+                            <div class="result-item">
+                                <strong>Nome Fantasia:</strong>
+                                <span>${empresa.nome_fantasia || 'N/A'}</span>
+                            </div>
+                            <div class="result-item">
+                                <strong>Porte:</strong>
+                                <span style="font-weight: 600; color: #2563eb;">${empresa.porte || 'N/A'}</span>
+                            </div>
+                            <div class="result-item">
+                                <strong>📞 Telefone:</strong>
+                                <span style="font-size: 1.1rem; font-weight: 600; color: #2563eb;">
+                                    ${empresa.telefone || 'Não disponível'}
+                                </span>
+                            </div>
+                            <div class="result-item">
+                                <strong>📧 Email:</strong>
+                                <span>${empresa.email || 'Não disponível'}</span>
+                            </div>
+                            <div class="result-item" style="grid-column: 1 / -1;">
+                                <strong>📍 Endereço:</strong>
+                                <span>${empresa.endereco_completo || 'N/A'}</span>
+                            </div>
+                            <div class="result-item">
+                                <strong>Situação:</strong>
+                                <span>${empresa.situacao || 'N/A'}</span>
+                            </div>
+                            <div class="result-item">
+                                <strong>Tipo:</strong>
+                                <span>${empresa.matriz_filial || 'N/A'}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Botão de exportar
+            html += `
+                <div style="margin-top: 20px; text-align: center;">
+                    <button onclick="exportMeiPhones()" class="btn btn-secondary">
+                        💾 Exportar para CSV
+                    </button>
+                </div>
+            `;
+
+            // Armazena dados globalmente
+            window.currentMeiData = result.data;
+
+        } else {
+            html += `
+                <div class="result-card error">
+                    <p>Nenhuma empresa MEI/ME encontrada em ${cidade}/${estado}.</p>
+                </div>
+            `;
+        }
+
+        showResult('mei-result', html, 'success');
+
+    } catch (error) {
+        showResult('mei-result', `
+            <div class="result-card error">
+                <p><strong>Erro:</strong> ${error.message}</p>
+            </div>
+        `, 'error');
+    } finally {
+        hideLoading();
+    }
+});
+
+// Função para exportar MEI/ME
+function exportMeiPhones() {
+    if (!window.currentMeiData || window.currentMeiData.length === 0) {
+        alert('Nenhum dado para exportar');
+        return;
+    }
+
+    // Cria CSV
+    const headers = ['CNPJ', 'Razão Social', 'Nome Fantasia', 'Porte', 'Telefone', 'Email', 'Endereço', 'Situação', 'Tipo'];
+    const rows = window.currentMeiData.map(empresa => [
+        empresa.cnpj || '',
+        empresa.razao_social || '',
+        empresa.nome_fantasia || '',
+        empresa.porte || '',
+        empresa.telefone || '',
+        empresa.email || '',
+        empresa.endereco_completo || '',
+        empresa.situacao || '',
+        empresa.matriz_filial || ''
+    ]);
+
+    let csvContent = headers.join(',') + '\n';
+    rows.forEach(row => {
+        csvContent += row.map(cell => `"${cell}"`).join(',') + '\n';
+    });
+
+    // Download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `mei_me_empresas_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
 // Consulta única
 document.getElementById('single-form')?.addEventListener('submit', async function(e) {
     e.preventDefault();
