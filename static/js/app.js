@@ -162,6 +162,154 @@ document.getElementById('single-form')?.addEventListener('submit', async functio
     }
 });
 
+// Buscar telefones por categoria
+document.getElementById('category-form')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const category = document.getElementById('category').value;
+    const source = document.getElementById('category-source').value;
+    const onlyWithPhone = document.getElementById('only-with-phone').checked;
+
+    if (!category) {
+        showResult('category-result', `
+            <div class="result-card error">
+                <p><strong>Erro:</strong> Selecione uma categoria</p>
+            </div>
+        `, 'error');
+        return;
+    }
+
+    showLoading();
+
+    try {
+        const response = await fetch(`${API_BASE}/api/discover/by-category?category=${category}&source=${source}&collect_phones=true`, {
+            method: 'POST'
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.detail || 'Erro ao buscar empresas');
+        }
+
+        let html = `
+            <div class="result-card success">
+                <h3>📊 Resultados - ${category.charAt(0).toUpperCase() + category.slice(1)}</h3>
+                <p><strong>Total encontrado:</strong> ${result.total_found}</p>
+                <p><strong>Com telefone:</strong> ${result.with_phone}</p>
+                <p><strong>Fonte:</strong> ${source}</p>
+            </div>
+        `;
+
+        if (result.data && result.data.length > 0) {
+            // Renderiza empresas com telefones
+            result.data.forEach(company => {
+                const hasPhone = company.telefone && company.telefone.trim();
+
+                html += `
+                    <div class="result-card ${hasPhone ? 'success' : ''}">
+                        <h3>${company.razao_social || 'Empresa'}</h3>
+                        <div class="result-grid">
+                            <div class="result-item">
+                                <strong>CNPJ:</strong>
+                                <span>${company.cnpj || 'N/A'}</span>
+                            </div>
+                            <div class="result-item">
+                                <strong>Nome Fantasia:</strong>
+                                <span>${company.nome_fantasia || 'N/A'}</span>
+                            </div>
+                            <div class="result-item">
+                                <strong>📞 Telefone:</strong>
+                                <span style="font-size: 1.1rem; font-weight: 600; color: #2563eb;">
+                                    ${company.telefone || 'Não disponível'}
+                                </span>
+                            </div>
+                            <div class="result-item">
+                                <strong>📧 Email:</strong>
+                                <span>${company.email || 'Não disponível'}</span>
+                            </div>
+                            <div class="result-item" style="grid-column: 1 / -1;">
+                                <strong>📍 Endereço:</strong>
+                                <span>${company.endereco_completo || 'N/A'}</span>
+                            </div>
+                            <div class="result-item">
+                                <strong>Situação:</strong>
+                                <span>${company.situacao || 'N/A'}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Adiciona botão de exportar
+            html += `
+                <div style="margin-top: 20px; text-align: center;">
+                    <button onclick="exportPhones()" class="btn btn-secondary">
+                        💾 Exportar para CSV
+                    </button>
+                </div>
+            `;
+
+            // Armazena dados globalmente para exportação
+            window.currentPhoneData = result.data;
+
+        } else {
+            html += `
+                <div class="result-card error">
+                    <p>Nenhuma empresa encontrada para esta categoria.</p>
+                </div>
+            `;
+        }
+
+        showResult('category-result', html, 'success');
+
+    } catch (error) {
+        showResult('category-result', `
+            <div class="result-card error">
+                <p><strong>Erro:</strong> ${error.message}</p>
+            </div>
+        `, 'error');
+    } finally {
+        hideLoading();
+    }
+});
+
+// Função para exportar telefones
+function exportPhones() {
+    if (!window.currentPhoneData || window.currentPhoneData.length === 0) {
+        alert('Nenhum dado para exportar');
+        return;
+    }
+
+    // Cria CSV
+    const headers = ['CNPJ', 'Razão Social', 'Nome Fantasia', 'Telefone', 'Email', 'Endereço', 'Situação'];
+    const rows = window.currentPhoneData.map(company => [
+        company.cnpj || '',
+        company.razao_social || '',
+        company.nome_fantasia || '',
+        company.telefone || '',
+        company.email || '',
+        company.endereco_completo || '',
+        company.situacao || ''
+    ]);
+
+    let csvContent = headers.join(',') + '\n';
+    rows.forEach(row => {
+        csvContent += row.map(cell => `"${cell}"`).join(',') + '\n';
+    });
+
+    // Download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `telefones_empresas_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
 // Consulta em lote
 document.getElementById('bulk-form')?.addEventListener('submit', async function(e) {
     e.preventDefault();

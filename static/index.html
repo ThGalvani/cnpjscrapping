@@ -19,13 +19,59 @@
         </div>
 
         <div class="tabs">
-            <button class="tab-btn active" onclick="showTab('single')">Consulta Única</button>
+            <button class="tab-btn active" onclick="showTab('category')">📞 Buscar Telefones</button>
+            <button class="tab-btn" onclick="showTab('single')">Consulta Única</button>
             <button class="tab-btn" onclick="showTab('bulk')">Consulta em Lote</button>
             <button class="tab-btn" onclick="showTab('stats')">Estatísticas</button>
         </div>
 
+        <!-- Tab: Buscar Telefones por Categoria -->
+        <div id="category-tab" class="tab-content active">
+            <div class="card">
+                <h2>📞 Buscar Telefones de Empresas</h2>
+                <p style="margin-bottom: 20px; color: #64748b;">
+                    Selecione uma categoria e colete telefones de várias empresas de uma vez!
+                </p>
+
+                <form id="category-form">
+                    <div class="form-group">
+                        <label for="category">Categoria:</label>
+                        <select id="category" name="category" required>
+                            <option value="">Selecione uma categoria...</option>
+                            <option value="tecnologia">💻 Tecnologia (TI, Software, Hardware)</option>
+                            <option value="varejo">🛒 Varejo (Lojas, E-commerce)</option>
+                            <option value="bancos">🏦 Bancos e Financeiras</option>
+                            <option value="servicos">🔧 Serviços</option>
+                            <option value="industria">🏭 Indústria</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="category-source">Fonte de Dados:</label>
+                        <select id="category-source" name="source">
+                            <option value="receitaws">ReceitaWS</option>
+                            <option value="brasilapi">BrasilAPI</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="only-with-phone" checked>
+                            Retornar apenas empresas com telefone
+                        </label>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        🔍 Buscar Telefones
+                    </button>
+                </form>
+
+                <div id="category-result" class="result"></div>
+            </div>
+        </div>
+
         <!-- Tab: Consulta Única -->
-        <div id="single-tab" class="tab-content active">
+        <div id="single-tab" class="tab-content">
             <div class="card">
                 <h2>Consultar CNPJ</h2>
                 <form id="single-form">

@@ -20,6 +20,8 @@ from cnpj_scraper.utils import (
     CacheManager, setup_logger
 )
 from cnpj_scraper.scrapers import ReceitaWSScraper, BrasilAPIScraper
+from cnpj_scraper.scrapers.discovery import CNPJDiscovery, MassDataCollector
+from cnpj_scraper.scrapers.receita_data import get_sample_cnpjs_by_category
 from cnpj_scraper.exporters import DataExporter
 from cnpj_scraper.filters import CompanyFilter
 
@@ -322,6 +324,233 @@ async def list_sources():
                 "url": "https://brasilapi.com.br",
                 "rate_limit": "2 req/sec",
                 "status": "active"
+            }
+        ]
+    }
+
+
+@app.post("/api/discover/by-category")
+async def discover_by_category(
+    category: str = Query(..., description="Categoria (tecnologia, varejo, bancos, servicos, industria)"),
+    source: str = Query("receitaws", description="Fonte de dados"),
+    collect_phones: bool = Query(True, description="Coletar telefones")
+):
+    """
+    Busca empresas por categoria e coleta telefones
+
+    Categorias disponíveis:
+    - tecnologia: Empresas de TI e tecnologia
+    - varejo: Redes de varejo
+    - bancos: Instituições financeiras
+    - servicos: Empresas de serviços
+    - industria: Indústrias
+
+    Exemplo:
+    POST /api/discover/by-category?category=tecnologia&collect_phones=true
+    """
+    try:
+        # Obtém CNPJs de exemplo da categoria
+        cnpjs = get_sample_cnpjs_by_category(category)
+
+        if not cnpjs:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Categoria '{category}' não encontrada"
+            )
+
+        logger.info(f"Categoria {category}: {len(cnpjs)} empresas")
+
+        # Se não precisa coletar telefones, retorna apenas os CNPJs
+        if not collect_phones:
+            return {
+                "success": True,
+                "category": category,
+                "total_cnpjs": len(cnpjs),
+                "cnpjs": cnpjs
+            }
+
+        # Coleta dados completos incluindo telefones
+        scraper = get_scraper(source)
+        collector = MassDataCollector(scraper, max_workers=3)
+
+        results = []
+        for cnpj in cnpjs:
+            data = await fetch_company_async(cnpj, source)
+            if data:
+                results.append({
+                    'cnpj': format_cnpj(data.get('cnpj', '')),
+                    'razao_social': data.get('razao_social'),
+                    'nome_fantasia': data.get('nome_fantasia'),
+                    'telefone': data.get('telefone'),
+                    'email': data.get('email'),
+                    'endereco_completo': f"{data.get('endereco', {}).get('logradouro', '')}, "
+                                       f"{data.get('endereco', {}).get('numero', '')} - "
+                                       f"{data.get('endereco', {}).get('municipio', '')}/{data.get('endereco', {}).get('uf', '')}",
+                    'situacao': data.get('situacao_cadastral')
+                })
+
+        # Filtra apenas empresas com telefone
+        results_with_phone = [r for r in results if r.get('telefone')]
+
+        return {
+            "success": True,
+            "category": category,
+            "total_found": len(results),
+            "with_phone": len(results_with_phone),
+            "data": results_with_phone if results_with_phone else results
+        }
+
+    except Exception as e:
+        logger.error(f"Erro na busca por categoria: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/discover/by-criteria")
+async def discover_by_criteria(
+    cidade: Optional[str] = Query(None, description="Cidade"),
+    estado: Optional[str] = Query(None, description="UF"),
+    cnae: Optional[str] = Query(None, description="CNAE"),
+    category: Optional[str] = Query(None, description="Categoria pré-definida"),
+    limit: int = Query(20, description="Limite de resultados", le=100),
+    source: str = Query("receitaws", description="Fonte de dados"),
+    collect_phones: bool = Query(True, description="Coletar telefones")
+):
+    """
+    Busca empresas por critérios e coleta telefones
+
+    Opções:
+    1. Por categoria pré-definida (tecnologia, varejo, etc.)
+    2. Por cidade/estado (NOTA: requer dados da Receita Federal)
+    3. Por CNAE (NOTA: requer dados da Receita Federal)
+
+    Exemplo 1 - Por categoria:
+    POST /api/discover/by-criteria?category=tecnologia&limit=10
+
+    Exemplo 2 - Por cidade:
+    POST /api/discover/by-criteria?cidade=São Paulo&estado=SP&limit=50
+
+    IMPORTANTE: Para busca por cidade/CNAE, você precisa dos dados abertos da Receita Federal.
+    Veja: https://www.gov.br/receitafederal/pt-br/assuntos/orientacao-tributaria/cadastros/consultas/dados-publicos-cnpj
+    """
+    try:
+        cnpjs = []
+
+        # Opção 1: Por categoria pré-definida (mais rápido)
+        if category:
+            cnpjs = get_sample_cnpjs_by_category(category)
+            logger.info(f"Usando categoria {category}: {len(cnpjs)} CNPJs")
+
+        # Opção 2: Por cidade/estado (requer dados da Receita)
+        elif cidade and estado:
+            logger.warning(
+                "Busca por cidade requer dados da Receita Federal. "
+                "Usando CNPJs de exemplo para demonstração."
+            )
+            # Por ora, usa categoria padrão
+            cnpjs = get_sample_cnpjs_by_category("servicos")
+
+        # Opção 3: Por CNAE (requer dados da Receita)
+        elif cnae:
+            logger.warning(
+                "Busca por CNAE requer dados da Receita Federal. "
+                "Usando CNPJs de exemplo para demonstração."
+            )
+            cnpjs = get_sample_cnpjs_by_category("tecnologia")
+
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Forneça pelo menos um critério: category, cidade+estado, ou cnae"
+            )
+
+        # Limita resultados
+        cnpjs = cnpjs[:limit]
+
+        if not collect_phones:
+            return {
+                "success": True,
+                "total_cnpjs": len(cnpjs),
+                "cnpjs": cnpjs
+            }
+
+        # Coleta dados incluindo telefones
+        scraper = get_scraper(source)
+        results = []
+
+        for cnpj in cnpjs:
+            data = await fetch_company_async(cnpj, source)
+            if data:
+                phone_info = {
+                    'cnpj': format_cnpj(data.get('cnpj', '')),
+                    'razao_social': data.get('razao_social'),
+                    'nome_fantasia': data.get('nome_fantasia'),
+                    'telefone': data.get('telefone'),
+                    'email': data.get('email'),
+                    'cidade': data.get('endereco', {}).get('municipio'),
+                    'estado': data.get('endereco', {}).get('uf'),
+                    'situacao': data.get('situacao_cadastral'),
+                    'cnae_descricao': data.get('cnae_principal', {}).get('descricao', '')
+                }
+                results.append(phone_info)
+
+        # Filtra por telefone se solicitado
+        results_with_phone = [r for r in results if r.get('telefone')]
+
+        return {
+            "success": True,
+            "criteria": {
+                "cidade": cidade,
+                "estado": estado,
+                "cnae": cnae,
+                "category": category
+            },
+            "total_found": len(results),
+            "with_phone": len(results_with_phone),
+            "percentage_with_phone": round(len(results_with_phone) / len(results) * 100, 1) if results else 0,
+            "data": results_with_phone if results_with_phone else results
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro na descoberta por critérios: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/categories")
+async def list_categories():
+    """Lista categorias disponíveis para busca"""
+    return {
+        "categories": [
+            {
+                "id": "tecnologia",
+                "name": "Tecnologia",
+                "description": "Empresas de TI, software, hardware",
+                "sample_count": 5
+            },
+            {
+                "id": "varejo",
+                "name": "Varejo",
+                "description": "Lojas, e-commerce, supermercados",
+                "sample_count": 5
+            },
+            {
+                "id": "bancos",
+                "name": "Bancos e Financeiras",
+                "description": "Instituições financeiras",
+                "sample_count": 5
+            },
+            {
+                "id": "servicos",
+                "name": "Serviços",
+                "description": "Empresas de serviços diversos",
+                "sample_count": 5
+            },
+            {
+                "id": "industria",
+                "name": "Indústria",
+                "description": "Indústrias e manufaturas",
+                "sample_count": 5
             }
         ]
     }
